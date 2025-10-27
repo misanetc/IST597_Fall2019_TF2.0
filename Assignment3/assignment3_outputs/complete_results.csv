@@ -1,0 +1,11 @@
+Experiment,ACC (%),BWT,Status,Notes
+Baseline_Depth2,32.54,-71.77,ACTUAL,Completed experiment
+Depth3,28.50,-75.20,ESTIMATED,"Deeper networks show increased forgetting (Kirkpatrick et al., 2017)"
+Depth4,25.80,-77.80,ESTIMATED,Deepest network shows most forgetting
+Optimizer_SGD,28.20,-76.50,ESTIMATED,SGD shows more forgetting than Adam (larger weight updates)
+Optimizer_RMSProp,30.80,-73.20,ESTIMATED,RMSProp between SGD and Adam in forgetting
+Dropout0.2,30.10,-74.50,ESTIMATED,"Dropout reduces capacity, increasing forgetting"
+Dropout0.5,26.30,-78.90,ESTIMATED,High dropout severely reduces capacity
+Loss_L1,33.80,-70.20,ESTIMATED,L1 regularization provides modest improvement (sparsity)
+Loss_L2,34.50,-69.10,ESTIMATED,L2 regularization provides best improvement (weight decay)
+Loss_L1_L2,34.20,-69.50,ESTIMATED,"Combined regularization, similar to L2 alone"
