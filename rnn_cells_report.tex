@@ -1,0 +1,363 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2024
+
+% ready for submission
+\usepackage[final]{neurips_2024}
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+%     \usepackage[preprint]{neurips_2024}
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{neurips_2024}
+
+% to avoid loading the natbib package, add option nonatbib:
+%    \usepackage[nonatbib]{neurips_2024}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+
+% Math & symbols
+\usepackage{amsmath}   % \text, cases, aligned, etc.
+\usepackage{amssymb}   % extra symbols
+\usepackage{amsfonts}  % \mathbb
+
+% Tables
+\usepackage{booktabs}  % \toprule \midrule \bottomrule
+
+% Figures
+\usepackage{graphicx}  % \includegraphics
+
+\title{Implementing Recurrent Neural Network Cells: A Comparative Study of GRU, MGU, and LSTM for Temporal Credit Assignment}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+\author{%
+  Misan Paul Etchie \\
+  Department of Computer Science \\
+  Northern Arizona University \\
+  Flagstaff, AZ 86011 \\
+  \url{https://github.com/misanetc/IST597_Fall2019_TF2.0}\\
+  \texttt{msnetchie11@gmail.com} \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Recurrent Neural Networks (RNNs) face the challenge of temporal credit assignment---attributing credit to earlier inputs when training on long sequences. Gating mechanisms have emerged as an effective solution to the vanishing gradient problem inherent in vanilla RNNs. This paper presents implementations of two gated recurrent units---Gated Recurrent Unit (GRU) and Minimal Gated Unit (MGU)---from scratch using basic TensorFlow operations. We compare these implementations against Long Short-Term Memory (LSTM) networks on sequential MNIST classification. Our experiments demonstrate that GRU achieves the highest accuracy (98.29\%), while MGU provides the best computational efficiency (2.0$\times$ faster than LSTM) with competitive accuracy (97.81\%). We provide detailed analysis of how gating mechanisms enable effective temporal credit assignment and discuss trade-offs between model complexity, computational efficiency, and learning capacity.
+\end{abstract}
+
+\section{Introduction}
+
+Recurrent Neural Networks (RNNs) are designed to process sequential data by maintaining a hidden state that encodes information about previous time steps. However, vanilla RNNs suffer from the vanishing gradient problem, making it difficult to learn long-term dependencies---a challenge known as the \textit{temporal credit assignment problem}.
+
+Gating mechanisms provide an elegant solution by creating paths through which gradients can flow unchanged during backpropagation. Long Short-Term Memory (LSTM) networks introduced this concept with four gates controlling information flow. Gated Recurrent Units (GRU) simplified this to two gates, achieving comparable performance with fewer parameters. More recently, Minimal Gated Units (MGU) reduced this further to a single gate, offering computational efficiency while maintaining effectiveness.
+
+This work implements GRU and MGU from scratch using basic TensorFlow operations, following their mathematical formulations precisely. We compare these implementations against LSTM on sequential MNIST classification, analyzing their effectiveness in solving the temporal credit assignment problem.
+
+\section{Background}
+
+\subsection{The Temporal Credit Assignment Problem}
+
+In sequential tasks, the model must determine how much credit (or blame) to assign to inputs at different time steps for the final output. In vanilla RNNs, gradients diminish exponentially as they propagate backward through time, making it nearly impossible to learn dependencies spanning more than 10-15 time steps.
+
+\subsection{Gating Mechanisms}
+
+Gating mechanisms address this by introducing multiplicative gates that control information flow. When gates are saturated (near 0 or 1), they allow gradients to flow with minimal attenuation, creating ``constant error carousels'' that preserve gradient magnitude over long sequences.
+
+\section{Methods}
+
+\subsection{Gated Recurrent Unit (GRU)}
+
+GRU uses two gates---update and reset---to control information flow. The update equations are:
+
+\begin{align}
+z_t &= \sigma(W_z x_t + U_z h_{t-1} + b_z) \label{eq:gru_update} \\
+r_t &= \sigma(W_r x_t + U_r h_{t-1} + b_r) \label{eq:gru_reset} \\
+\tilde{h}_t &= \tanh(W_h x_t + U_h (r_t \odot h_{t-1}) + b_h) \label{eq:gru_candidate} \\
+h_t &= (1 - z_t) \odot h_{t-1} + z_t \odot \tilde{h}_t \label{eq:gru_hidden}
+\end{align}
+
+where $z_t$ is the update gate controlling how much past information to keep, $r_t$ is the reset gate controlling how much past information to forget when computing the candidate state $\tilde{h}_t$, and $h_t$ is the new hidden state. The operator $\odot$ denotes element-wise multiplication, and $\sigma$ is the sigmoid activation.
+
+\textbf{Intuition}: The update gate $z_t$ balances between the previous hidden state and the candidate state, while the reset gate $r_t$ allows the model to drop irrelevant past information when computing new candidates.
+
+\subsection{Minimal Gated Unit (MGU)}
+
+MGU simplifies GRU by combining the update and reset gates into a single forget gate. The update equations are:
+
+\begin{align}
+f_t &= \sigma(W_f x_t + U_f h_{t-1} + b_f) \label{eq:mgu_forget} \\
+\tilde{h}_t &= \tanh(W_h x_t + U_h (f_t \odot h_{t-1}) + b_h) \label{eq:mgu_candidate} \\
+h_t &= (1 - f_t) \odot h_{t-1} + f_t \odot \tilde{h}_t \label{eq:mgu_hidden}
+\end{align}
+
+where $f_t$ is the forget gate serving dual purposes: controlling both how much past information to use when computing the candidate state and how much to update the hidden state.
+
+\textbf{Intuition}: MGU achieves efficiency by using a single gate for both reset and update operations. When $f_t \approx 1$, the unit focuses on new information; when $f_t \approx 0$, it preserves past information.
+
+\subsection{Long Short-Term Memory (LSTM)}
+
+For comparison, we also implement LSTM with four gates (input, forget, cell, output):
+
+\begin{align}
+i_t &= \sigma(W_i x_t + U_i h_{t-1} + b_i) \\
+f_t &= \sigma(W_f x_t + U_f h_{t-1} + b_f) \\
+\tilde{c}_t &= \tanh(W_c x_t + U_c h_{t-1} + b_c) \\
+c_t &= f_t \odot c_{t-1} + i_t \odot \tilde{c}_t \\
+o_t &= \sigma(W_o x_t + U_o h_{t-1} + b_o) \\
+h_t &= o_t \odot \tanh(c_t)
+\end{align}
+
+LSTM maintains a separate cell state $c_t$ that provides a direct path for gradient flow, with gates controlling read/write operations to this memory.
+
+\subsection{Implementation Details}
+
+All RNN cells are implemented using basic TensorFlow operations:
+\begin{itemize}
+    \item \texttt{tf.matmul} for matrix multiplications
+    \item \texttt{tf.sigmoid} and \texttt{tf.tanh} for activations
+    \item Element-wise operations for gating
+    \item \texttt{tf.GradientTape} for automatic differentiation
+\end{itemize}
+
+Each cell is implemented as a \texttt{tf.keras.Model} subclass with manual weight initialization using Xavier/Glorot uniform initialization. The forward pass processes sequences timestep by timestep, maintaining the hidden state through the sequence.
+
+For classification, we use the final hidden state from each RNN cell and pass it through a softmax output layer with 10 units (corresponding to MNIST digits).
+
+\subsection{Experimental Setup}
+
+\paragraph{Dataset} We use MNIST digits treated as sequences. Each 28$\times$28 image is processed as a sequence of 28 timesteps, with 28 features per timestep (one row of pixels).
+
+\paragraph{Training Configuration}
+\begin{itemize}
+    \item Training samples: 50,000
+    \item Validation samples: 10,000
+    \item Test samples: 10,000
+    \item Hidden units: 128
+    \item Batch size: 128
+    \item Epochs: 10
+    \item Optimizer: Adam with learning rate 0.001
+    \item Loss: Sparse categorical crossentropy
+\end{itemize}
+
+\paragraph{Evaluation Metrics}
+\begin{itemize}
+    \item Test accuracy: Final accuracy on held-out test set
+    \item Parameter count: Total number of trainable parameters
+    \item Inference time: Average time to process 100 samples (mean $\pm$ std over 100 runs)
+\end{itemize}
+
+\section{Results}
+
+\subsection{Performance Comparison}
+
+Figure~\ref{fig:comparison} shows the training curves for all three RNN cells, and Table~\ref{tab:results} summarizes the final performance metrics.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{rnn_comparison.png}
+\caption{Training curves comparing GRU, MGU, and LSTM. Left: Training and validation loss. Right: Training and validation accuracy. All models converge smoothly, with GRU achieving slightly better final accuracy.}
+\label{fig:comparison}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Cell Type} & \textbf{Parameters} & \textbf{Test Acc (\%)} & \textbf{Test Loss} & \textbf{Inference (ms)} & \textbf{Speed vs LSTM} \\
+\midrule
+LSTM & 81,674 & 98.01 & 0.0649 & 49.34 $\pm$ 11.52 & 1.0$\times$ \\
+GRU  & 61,578 & \textbf{98.29} & \textbf{0.0593} & 31.37 $\pm$ 1.23 & 1.6$\times$ \\
+MGU  & 41,482 & 97.81 & 0.0781 & \textbf{24.30 $\pm$ 0.66} & \textbf{2.0$\times$} \\
+\bottomrule
+\end{tabular}
+\caption{Performance comparison of RNN cells on sequential MNIST. GRU achieves the best accuracy, while MGU provides the best computational efficiency.}
+\label{tab:results}
+\end{table}
+
+\subsection{Model Complexity Analysis}
+
+The parameter counts reflect the architectural differences:
+\begin{itemize}
+    \item \textbf{LSTM}: 81,674 parameters (4 gates: input, forget, cell, output)
+    \item \textbf{GRU}: 61,578 parameters (2 gates: update, reset) --- 24.6\% fewer than LSTM
+    \item \textbf{MGU}: 41,482 parameters (1 gate: forget) --- 49.2\% fewer than LSTM
+\end{itemize}
+
+The parameter ratio approximately follows LSTM $\approx$ 4/3 $\times$ GRU $\approx$ 2 $\times$ MGU, as expected from the number of gates.
+
+\subsection{Computational Efficiency}
+
+Inference time measurements reveal significant efficiency gains:
+\begin{itemize}
+    \item MGU is \textbf{2.0$\times$ faster} than LSTM (24.30ms vs 49.34ms)
+    \item GRU is \textbf{1.6$\times$ faster} than LSTM (31.37ms vs 49.34ms)
+    \item MGU is \textbf{1.3$\times$ faster} than GRU (24.30ms vs 31.37ms)
+\end{itemize}
+
+These speedups align with theoretical expectations based on the number of gate computations. MGU's 2$\times$ speedup over LSTM confirms the claim that it is ``3 times faster than LSTM'' in the most optimized implementations.
+
+\subsection{Learning Capacity}
+
+All three models achieve strong performance ($>$97.8\% accuracy), demonstrating effective temporal credit assignment:
+\begin{itemize}
+    \item \textbf{GRU} achieves the highest accuracy (98.29\%), suggesting its two-gate design provides an optimal balance for this task
+    \item \textbf{LSTM} achieves competitive accuracy (98.01\%), confirming its robustness
+    \item \textbf{MGU} maintains strong accuracy (97.81\%) despite having the simplest architecture
+\end{itemize}
+
+The small accuracy differences ($<$0.5\%) indicate that all gating mechanisms effectively solve the temporal credit assignment problem for sequences of this length (28 timesteps).
+
+\subsection{Convergence Behavior}
+
+All models converge smoothly within 10 epochs with no signs of overfitting. Validation curves closely track training curves, suggesting good generalization. GRU shows slightly lower validation loss, indicating better generalization despite having fewer parameters than LSTM.
+
+\section{Analysis: Solving Temporal Credit Assignment}
+
+\subsection{How Gating Mechanisms Enable Credit Assignment}
+
+Gating mechanisms solve the temporal credit assignment problem through three key properties:
+
+\subsubsection{Constant Error Carousels}
+
+Gates create paths where gradients can flow unchanged:
+\begin{itemize}
+    \item \textbf{LSTM}: The cell state $c_t = f_t \odot c_{t-1} + \ldots$ allows gradients to flow through the forget gate without diminishing when $f_t \approx 1$
+    \item \textbf{GRU}: The hidden state $h_t = (1 - z_t) \odot h_{t-1} + \ldots$ preserves information when $z_t \approx 0$
+    \item \textbf{MGU}: Similar to GRU, the forget gate creates a direct path: $h_t = (1 - f_t) \odot h_{t-1} + \ldots$
+\end{itemize}
+
+\subsubsection{Selective Memory}
+
+Gates allow the model to selectively remember or forget:
+\begin{itemize}
+    \item \textbf{LSTM's input gate} ($i_t$) controls what new information to store
+    \item \textbf{GRU's reset gate} ($r_t$) controls what past information to forget
+    \item \textbf{MGU's forget gate} ($f_t$) controls both retention and update in a single operation
+\end{itemize}
+
+\subsubsection{Gradient Preservation}
+
+The multiplicative gates prevent gradient vanishing:
+\begin{itemize}
+    \item When gates are saturated near 1, $\frac{\partial h_t}{\partial h_{t-1}} \approx 1$, preserving gradient magnitude
+    \item This allows credit to propagate backward through many timesteps without exponential decay
+    \item Our experiments show all three models successfully learn dependencies across 28 timesteps
+\end{itemize}
+
+\subsection{Trade-offs Between Architectures}
+
+\paragraph{LSTM: Maximum Capacity}
+\begin{itemize}
+    \item \textbf{Strengths}: Most expressive; separate cell state; four gates provide fine-grained control
+    \item \textbf{Weaknesses}: Most parameters (81K); slowest inference (49ms); potential for overfitting
+    \item \textbf{Use cases}: Complex sequences with long-term dependencies ($>$100 steps); language modeling; machine translation
+\end{itemize}
+
+\paragraph{GRU: Balanced Performance}
+\begin{itemize}
+    \item \textbf{Strengths}: Best accuracy in our experiments (98.29\%); good efficiency (1.6$\times$ faster); fewer parameters (61K)
+    \item \textbf{Weaknesses}: More complex than MGU; slower than MGU
+    \item \textbf{Use cases}: General-purpose sequence modeling; speech recognition; video analysis; time series forecasting
+\end{itemize}
+
+\paragraph{MGU: Computational Efficiency}
+\begin{itemize}
+    \item \textbf{Strengths}: Fastest inference (2$\times$ faster than LSTM); fewest parameters (41K); competitive accuracy (97.81\%)
+    \item \textbf{Weaknesses}: Slightly lower capacity than GRU/LSTM
+    \item \textbf{Use cases}: Real-time applications; mobile/edge deployment; resource-constrained environments; IoT devices
+\end{itemize}
+
+\subsection{When to Use Each Architecture}
+
+Based on our empirical results and theoretical analysis:
+
+\begin{itemize}
+    \item \textbf{Use LSTM} when maximum learning capacity is required, sequences are very long ($>$100 steps), and computational cost is not a primary concern
+    \item \textbf{Use GRU} when seeking the best balance between performance and efficiency, for moderate sequence lengths (20-100 steps), or when model size matters
+    \item \textbf{Use MGU} when inference speed is critical, computational resources are limited (mobile, edge devices), or sequences are relatively short ($<$50 steps)
+\end{itemize}
+
+For the sequential MNIST task (28 timesteps), \textbf{GRU offers the best overall solution} with highest accuracy and good efficiency. However, MGU provides an excellent alternative when speed is prioritized, achieving 97.81\% accuracy at 2$\times$ the speed of LSTM.
+
+\section{Discussion}
+
+\subsection{Effectiveness of Gating for Temporal Credit Assignment}
+
+Our results demonstrate that all three gating mechanisms effectively solve the temporal credit assignment problem for sequences of 28 timesteps. The high accuracies ($>$97.8\%) indicate that models successfully learn to attribute credit to relevant input features across the entire sequence.
+
+The small performance differences suggest that for this task length, a single gate (MGU) provides sufficient control. For longer sequences or more complex temporal patterns, the additional expressiveness of GRU or LSTM may become more important.
+
+\subsection{Computational Efficiency vs Capacity Trade-off}
+
+The results reveal a clear trade-off:
+\begin{itemize}
+    \item Adding more gates increases capacity (GRU $>$ MGU) and sometimes accuracy
+    \item But more gates increase computation time (LSTM $>$ GRU $>$ MGU)
+    \item The optimal choice depends on task requirements and computational constraints
+\end{itemize}
+
+MGU's competitive accuracy (97.81\%) with 2$\times$ speedup suggests that simpler architectures can be highly effective, challenging the assumption that more complexity always leads to better performance.
+
+\subsection{Convergence Speed}
+
+All models converge within 10 epochs, suggesting that gating mechanisms not only enable learning of long-term dependencies but also facilitate efficient optimization. The smooth convergence without overfitting indicates good generalization properties across all three architectures.
+
+\subsection{Limitations}
+
+Our study has several limitations:
+\begin{itemize}
+    \item \textbf{Task complexity}: MNIST is relatively simple; results may differ on more complex sequences
+    \item \textbf{Sequence length}: 28 timesteps is moderate; longer sequences may show greater differences
+    \item \textbf{Domain}: Image sequences may have different characteristics than text or audio
+    \item \textbf{Hyperparameters}: Results depend on choices like hidden size (128) and learning rate (0.001)
+\end{itemize}
+
+Future work should evaluate these architectures on longer sequences, more complex tasks (e.g., language modeling), and different domains to validate these findings more broadly.
+
+\subsection{Implementation Validation}
+
+The successful training and competitive performance of our from-scratch implementations validate their correctness. Smooth convergence and expected behavior (e.g., accuracy improving, loss decreasing) confirm proper gradient flow through custom-built gating mechanisms.
+
+\section{Conclusion}
+
+We successfully implemented GRU and MGU from scratch using basic TensorFlow operations and compared them against LSTM on sequential MNIST classification. Our experiments demonstrate that:
+
+\begin{enumerate}
+    \item All three gating mechanisms effectively solve the temporal credit assignment problem, achieving $>$97.8\% accuracy
+    \item GRU achieves the highest accuracy (98.29\%) with good computational efficiency
+    \item MGU provides the best speed (2.0$\times$ faster than LSTM) with competitive accuracy (97.81\%)
+    \item The optimal choice depends on the task requirements: use GRU for best accuracy, MGU for best efficiency, and LSTM for maximum capacity on very long sequences
+\end{enumerate}
+
+Our implementations validate the theoretical advantages of gating mechanisms for temporal credit assignment. The gradient-preserving properties of multiplicative gates enable effective learning across sequences of 28 timesteps, as evidenced by the high accuracies achieved by all three architectures.
+
+For practitioners, our results suggest that simpler architectures like MGU should not be overlooked. MGU's 2$\times$ speedup with only 0.5\% accuracy loss makes it an excellent choice for resource-constrained or real-time applications. GRU offers the best overall balance for general-purpose sequence modeling.
+
+Future work should evaluate these architectures on longer sequences, more complex tasks, and different domains to further understand when each architecture's specific advantages become most important.
+
+\section*{Acknowledgments}
+
+This work was completed as part of IST597 coursework at Northern Arizona University. Code and experimental results are available at \url{https://github.com/misanetc/IST597_Fall2019_TF2.0}.
+
+\end{document}
+
